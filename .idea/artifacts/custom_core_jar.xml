@@ -1,0 +1,11 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="custom-core:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/custom_core_jar</output-path>
+    <root id="archive" name="custom-core.jar">
+      <element id="module-output" name="custom-core" />
+      <element id="extracted-dir" path="$USER_HOME$/.m2/repository/javax/servlet/servlet-api/3.0-alpha-1/servlet-api-3.0-alpha-1.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$USER_HOME$/.m2/repository/asm/asm/3.1/asm-3.1.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$USER_HOME$/.m2/repository/cglib/cglib/2.2/cglib-2.2.jar" path-in-jar="/" />
+    </root>
+  </artifact>
+</component>

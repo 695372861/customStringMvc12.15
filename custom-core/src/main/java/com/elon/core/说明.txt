@@ -1,0 +1,165 @@
+下面是框架使用说明：
+整个请求完整流程：
+首先，容器启动 执行上下文监听器期，完成bean的实例化，类字段的注入，请求路径的关联(关联bean的map的key值和controller的method)，完成aop代理的使用的回调实例
+然后，浏览器/移动端请求过来，DispatherServlet拦截到请求执行拦截器，其次获取到requestUrl然后获取到相应的controller和待执行的controller的方法，然后通过反射执行method，完成请求。
+1.实例化bean的注解(拥有这些注解就会实例化同时也会注入包含字段)：
+@Controller(类似于springmvc的controller)：
+这个是请求过来执行完拦截器后调用的类
+@Interceptor拦截器注解：
+如果要实现拦截器功能，就必须在类上面加入注解@Interceptor，并且指定注解的值order(拦截器执行的顺序)，同时实现抽象类AbstractInterceptor的handlerInterceptor()方法来执行相关的业务
+@AutoWire注入字段注解：
+如果在类的字段上加入了这个注解，那么容器初始化的时候就会给类的实例初始化对应值(保存在程序上下文当中)
+@RequestMapping映射路径注解
+该注解可以注释在类和方法上，注解属性value指定了映射路径。程序在初始化的时候 保存了路径和bean名字映射map及路径和method映射map
+@Service
+实例化类实例注解，注解属性name指定了实例名称，并把name属性或者类名做key  实例做value保存在map当中
+2.aop动态代理注解：
+@AfterAdvice、@BeforeAdvice、ThrowingAdvice前置通知注解：
+如果要实现前置通知功能，就必须在类上加入注解@AfterAdvice，并指定注解的callBackVal值(当存在多个aop功能的时候，这个值用来标记执行哪个通知)，同时要实现接口Advice，并且实现对应方法
+@JDKProxy代理注解：
+在类上加入这个注解表明这个类要被jdk动态代理，需要实现aop功能。并且指定该注解的callBackVal用来关联哪些通知。
+注：只用这个注解必须是该类有实现的接口
+@CGLibProxy代理注解：
+在类上加入这个注解表明这个类要被cglib动态代理，需要实现aop功能。并且指定该注解的callBackVal用来关联哪些通知。
+
+---------------------
+
+本文来自 ping1185279685 的CSDN 博客 ，全文地址请点击：https://blog.csdn.net/ping1185279685/article/details/56671709?utm_source=copy
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.Arrays;
+
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassVisitor;
+import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
+
+public class TestMain {
+
+	public static void main(String[] args) {
+
+		Class<?> clazz = TestMain.class;
+		try {
+			Method method = clazz.getDeclaredMethod("test", String.class,
+					int.class);
+			String[] pns = getParameterNamesByAsm5(clazz, method);
+			System.out.print(method.getName() + " : ");
+			for (String parameterName : pns) {
+				System.out.print(parameterName + ' ');
+			}
+		} catch (NoSuchMethodException e) {
+			e.printStackTrace();
+		} catch (SecurityException e) {
+			e.printStackTrace();
+		}
+	}
+
+	public static void test(String param1, int param2) {
+		System.out.println(param1 + param2);
+	}
+
+	public static String[] getParameterNamesByAsm5(Class<?> clazz,
+			final Method method) {
+		final Class<?>[] parameterTypes = method.getParameterTypes();
+		if (parameterTypes == null || parameterTypes.length == 0) {
+			return null;
+		}
+		final Type[] types = new Type[parameterTypes.length];
+		for (int i = 0; i < parameterTypes.length; i++) {
+			types[i] = Type.getType(parameterTypes[i]);
+		}
+		final String[] parameterNames = new String[parameterTypes.length];
+
+		String className = clazz.getName();
+		int lastDotIndex = className.lastIndexOf(".");
+		className = className.substring(lastDotIndex + 1) + ".class";
+		InputStream is = clazz.getResourceAsStream(className);
+		try {
+			ClassReader classReader = new ClassReader(is);
+			classReader.accept(new ClassVisitor(Opcodes.ASM5) {
+				@Override
+				public MethodVisitor visitMethod(int access, String name,
+						String desc, String signature, String[] exceptions) {
+					// 只处理指定的方法
+					Type[] argumentTypes = Type.getArgumentTypes(desc);
+					if (!method.getName().equals(name)
+							|| !Arrays.equals(argumentTypes, types)) {
+						return super.visitMethod(access, name, desc, signature,
+								exceptions);
+					}
+					return new MethodVisitor(Opcodes.ASM5) {
+						@Override
+						public void visitLocalVariable(String name, String desc,
+								String signature, org.objectweb.asm.Label start,
+								org.objectweb.asm.Label end, int index) {
+							// 非静态成员方法的第一个参数是this
+							if (Modifier.isStatic(method.getModifiers())) {
+								parameterNames[index] = name;
+							} else if (index > 0) {
+								parameterNames[index - 1] = name;
+							}
+						}
+					};
+				}
+			}, 0);
+		} catch (IOException e) {
+		} finally {
+			try {
+				if (is != null) {
+					is.close();
+				}
+			} catch (Exception e2) {
+			}
+		}
+		return parameterNames;
+	}
+
+}
+
+import javassist.ClassPool;
+import javassist.CtClass;
+import javassist.CtMethod;
+import javassist.Modifier;
+import javassist.NotFoundException;
+import javassist.bytecode.CodeAttribute;
+import javassist.bytecode.LocalVariableAttribute;
+import javassist.bytecode.MethodInfo;
+
+public class TestMain {
+
+	public static void main(String[] args) {
+		Class<?> clazz = TestMain.class;
+		ClassPool pool = ClassPool.getDefault();
+		try {
+			CtClass ctClass = pool.get(clazz.getName());
+			CtMethod ctMethod = ctClass.getDeclaredMethod("test");
+
+			// 使用javassist的反射方法的参数名
+			MethodInfo methodInfo = ctMethod.getMethodInfo();
+			CodeAttribute codeAttribute = methodInfo.getCodeAttribute();
+			LocalVariableAttribute attr = (LocalVariableAttribute) codeAttribute
+					.getAttribute(LocalVariableAttribute.tag);
+			if (attr != null) {
+				int len = ctMethod.getParameterTypes().length;
+				// 非静态的成员函数的第一个参数是this
+				int pos = Modifier.isStatic(ctMethod.getModifiers()) ? 0 : 1;
+				System.out.print("test : ");
+				for (int i = 0; i < len; i++) {
+					System.out.print(attr.variableName(i + pos) + ' ');
+				}
+				System.out.println();
+			}
+		} catch (NotFoundException e) {
+			e.printStackTrace();
+		}
+	}
+
+	public static void test(String param1, int param2) {
+		System.out.println(param1 + param2);
+	}
+}
+
