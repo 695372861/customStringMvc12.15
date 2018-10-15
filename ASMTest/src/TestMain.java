@@ -6,6 +6,8 @@ import java.lang.reflect.Modifier;
 import java.net.URL;
 import java.util.Arrays;
 
+import com.sun.org.apache.bcel.internal.generic.ILOAD;
+import jdk.nashorn.internal.runtime.regexp.joni.constants.OPCode;
 import org.objectweb.asm.*;
 
 public class TestMain {
@@ -26,7 +28,7 @@ public class TestMain {
 //            e.printStackTrace();
 //        }
 //        readerClass("java.lang.String");
-//        TestClassWriter();
+        TestClassWriter();
         createRun();
     }
     public  void exc(String className)
@@ -93,13 +95,17 @@ public class TestMain {
     public static void TestClassWriter()
     {
         String clazzName="InterfaceB";
-        ClassWriter classWriter=new ClassWriter(ClassWriter.COMPUTE_MAXS);
+        //手动计算栈帧大小、本地变量和操作数栈的大小；COMPUTE.MAXS需要自己计算栈帧大小，但本地变量与操作数已自动计算好，当然也可以调用visitMaxs方法，只不过不起作用，参数会被忽略；
+        // COMPUTE_FRAMES栈帧本地变量和操作数栈都自动计算，不需要调用visitFrame和visitMaxs方法，即使调用也会被忽略
+        ClassWriter classWriter=new ClassWriter(ClassWriter.COMPUTE_FRAMES);
         //定义一个接口并且指定的名称和要实现的接口
-        classWriter.visit(Opcodes.V1_8,Opcodes.ACC_PUBLIC,clazzName,null, "java/lang/Object",null);//new String[]{"java/lang/Runnable"}
+        classWriter.visit(Opcodes.V1_8,Opcodes.ACC_PUBLIC,clazzName,null, "java/lang/Object",new String[]{"InterfaceA"});//
         //在接口中添加变量
-        classWriter.visitField(Opcodes.ACC_PUBLIC+Opcodes.ACC_STATIC,"LESS","I",null,-1).visitEnd();
-        classWriter.visitField(Opcodes.ACC_PUBLIC+Opcodes.ACC_STATIC,"EQUAL","I",null,0).visitEnd();
-        classWriter.visitField(Opcodes.ACC_PUBLIC+Opcodes.ACC_STATIC,"GREATER","I",null,1).visitEnd();
+        classWriter.visitField(Opcodes.ACC_PUBLIC+Opcodes.ACC_STATIC,"LESS","I",null,-11).visitEnd();
+        classWriter.visitField(Opcodes.ACC_PUBLIC+Opcodes.ACC_STATIC,"EQUAL","I",null,10).visitEnd();
+        classWriter.visitField(Opcodes.ACC_PUBLIC+Opcodes.ACC_STATIC,"GREATER","I",null,11).visitEnd();
+        classWriter.visitField(Opcodes.ACC_PRIVATE,"name","Ljava/lang/String;",null,null).visitEnd();
+        classWriter.visitField(Opcodes.ACC_PRIVATE,"age","I",null,0).visitEnd();
 
         //在接口中定义一个无参数的构造方法
         MethodVisitor constructor=classWriter.visitMethod(Opcodes.ACC_PUBLIC,"<init>","()V",null,null);
@@ -108,11 +114,40 @@ public class TestMain {
         constructor.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false);
         //从当前方法返回void
         constructor.visitInsn(Opcodes.RETURN);
-        constructor.visitMaxs(1, 1);
+        //设置本地变量与操作数
+        constructor.visitMaxs(0, 0);
+        //constructor.visitFrame(1,1)//可以指定栈帧中的本地变量与操作数。
         constructor.visitEnd();
 
-//        classWriter.visitMethod(Opcodes.ACC_PUBLIC+Opcodes.ACC_ABSTRACT,"compareTo","(Ljava/lang/Object;Ljava/lang/Object;)V",null,null).visitEnd();
-//        classWriter.visitMethod(Opcodes.ACC_PUBLIC+Opcodes.ACC_STATIC,"main","(Ljava/lang/Object;)V",null,null).visitEnd();
+
+        constructor=classWriter.visitMethod(Opcodes.ACC_PUBLIC,"compareTo","(II)I",null,null);
+        //开始生成一个方法
+        constructor.visitCode();
+        constructor.visitVarInsn(Opcodes.ILOAD,1);
+        constructor.visitVarInsn(Opcodes.ILOAD,2);
+        constructor.visitInsn(Opcodes.IADD);
+        constructor.visitInsn(Opcodes.IRETURN);
+       // 操作数栈大小为2，局部变量表大小为3
+        constructor.visitMaxs(2,3);
+        //结束生产一个方法
+        constructor.visitEnd();
+
+
+        constructor=classWriter.visitMethod(Opcodes.ACC_PUBLIC,"compareTo2","(I)V",null,null);
+        //开始生成一个方法
+        constructor.visitCode();
+        constructor.visitVarInsn(Opcodes.ALOAD, 0);
+        constructor.visitVarInsn(Opcodes.ILOAD, 1);
+        constructor.visitFieldInsn(Opcodes.PUTFIELD, "InterfaceB", "age", "I");
+//        constructor.visitFieldInsn(Opcodes.GETSTATIC,"java/lang/System","out","Ljava/io/PrintStream;");
+//        constructor.visitLdcInsn("ssss");
+//        constructor.visitMethodInsn(Opcodes.INVOKEVIRTUAL,"java/io/PrintStream","println","(Ljava/lang/String;)V", false);
+        constructor.visitInsn(Opcodes.RETURN);
+        // 操作数栈大小为2，局部变量表大小为3
+        constructor.visitMaxs(0,0);
+        //结束生产一个方法
+        constructor.visitEnd();
+
         //类结束生产
         classWriter.visitEnd();
         byte[] data=classWriter.toByteArray();
@@ -131,9 +166,12 @@ public class TestMain {
             clazz=Class.forName("InterfaceB");
             Object object=clazz.newInstance();
             Field field=clazz.getDeclaredField("LESS");
-
             System.out.println(field.getName()+"="+field.get(object));
-
+            Method method=clazz.getDeclaredMethod("compareTo",int.class,int.class);
+            Object obj=method.invoke(object,1,2);
+            System.out.println(obj.toString());
+            Method method1=clazz.getDeclaredMethod("compareTo2",int.class);
+            method1.invoke(object,17);
         } catch (NoSuchFieldException e) {
             e.printStackTrace();
 
@@ -143,6 +181,10 @@ public class TestMain {
         } catch (IllegalAccessException e) {
             e.printStackTrace();
         } catch (InstantiationException e) {
+            e.printStackTrace();
+        } catch (NoSuchMethodException e) {
+            e.printStackTrace();
+        } catch (InvocationTargetException e) {
             e.printStackTrace();
         }
     }
@@ -162,7 +204,6 @@ public class TestMain {
     {
         //注意，这里需要把classname里面的.改成/，如com.asm.Test改成com/asm/Test
         ClassWriter cw = createClassWriter(className.replace('.', '/'));
-
         //创建run方法
         //()V表示函数，无参数，无返回值
         MethodVisitor runMethod = cw.visitMethod(Opcodes.ACC_PUBLIC, "run", "()V", null, null);
@@ -177,6 +218,7 @@ public class TestMain {
         runMethod.visitEnd();
         return cw.toByteArray();
     }
+    //visitInsn、visitVarInsn、visitMethodInsn等以Insn结尾的方法可以添加方法实现的字节码。
     static ClassWriter createClassWriter(String className)
     {
         ClassWriter cw =new ClassWriter(ClassWriter.COMPUTE_MAXS);
@@ -200,7 +242,6 @@ public class TestMain {
             MyClassLoader myClassLoader=new MyClassLoader(str+"MyRun.class");
             Class<?> clazz=Class.forName("MyRun",true,myClassLoader);
             clazz.getDeclaredMethods()[0].invoke(clazz.newInstance());
-
         } catch (Exception e) {
             e.printStackTrace();
         }
