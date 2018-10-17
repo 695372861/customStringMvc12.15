@@ -10,10 +10,13 @@
         <module name="custom-web" />
       </profile>
     </annotationProcessing>
-    <bytecodeTargetLevel>
-      <module name="custom-core" target="1.5" />
+    <bytecodeTargetLevel target="1.8">
+      <module name="custom-core" target="1.8" />
       <module name="custom-web" target="1.5" />
       <module name="customSpringMvc" target="1.5" />
     </bytecodeTargetLevel>
+  </component>
+  <component name="JavacSettings">
+    <option name="ADDITIONAL_OPTIONS_STRING" value="-parameters" />
   </component>
 </project>

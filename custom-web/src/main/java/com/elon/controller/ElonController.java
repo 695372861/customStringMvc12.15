@@ -8,10 +8,12 @@ import com.elon.core.anotation.Controller;
 import com.elon.core.anotation.RequestMapping;
 import com.elon.service.impl.ElonService;
 
+import javax.servlet.http.HttpServletRequest;
+
 /**
- * 2017/2/14 15:22.
+ *
  * <p>
- * Email: cheerUpPing@163.com
+ *
  */
 @Controller(name = "elonController")
 @RequestMapping(value = "/elon")
@@ -29,8 +31,13 @@ public class ElonController {
     @AutoWire
     private ElonOtherAopService elonOtherAopService;//jdk动态代理
 
+    //在controller的设置中，现在只支持基础数据类型和HttpServletRequest和httpServletResponse的设置
+    //如果设置其他的类型着取到的对象为null
+    //如果要取大量数据可以在HttpServletRequest中进行设置
     @RequestMapping(value = "/sayHello")
-    public String sayHello(String param) {
+    public String sayHello(String param, HttpServletRequest request,int flag) {
+        String param1=request.getParameter("param");
+        System.out.println("param1="+param1+" flag="+flag);
         elonCGLibService.elonCglib(param);
         elonAopService.driveSlow();
         elonOtherAopService.driveFast();
